@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Sistema de Control y Monitoreo</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial, Helvetica, sans-serif;
+  background:#d9d9d9;
+  color:#222;
+}
+
+/* ENCABEZADO */
+header{
+  background:linear-gradient(90deg,#b30000,#005f99);
+  color:white;
+  padding:20px;
+  text-align:center;
+}
+header h1{ margin:5px 0; }
+header h2{ margin:5px 0; font-weight:normal; }
+header h3{ margin:5px 0; font-weight:normal; color:#ffeb3b; }
+
+/* CONTENEDOR */
+.container{
+  padding:15px;
+}
+
+/* BLOQUES */
+.card{
+  background:#f2f2f2;
+  border-radius:12px;
+  padding:15px;
+  margin-bottom:15px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.2);
+}
+
+/* ESTADOS */
+.status{
+  display:flex;
+  gap:20px;
+  justify-content:space-around;
+  text-align:center;
+}
+.indicator{
+  padding:10px 20px;
+  border-radius:20px;
+  font-weight:bold;
+  color:white;
+}
+.motorON{ background:#2e7d32; }
+.motorOFF{ background:#b71c1c; }
+.falla{ background:#f57c00; }
+.lubON{ background:#0277bd; }
+.lubOFF{ background:#455a64; }
+
+/* GESTOS */
+.gestos{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+}
+
+.gestoBox{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.gestoInfo{
+  width:180px;
+}
+
+.gestoInfo span{
+  display:block;
+  font-weight:bold;
+}
+
+canvas{
+  background:#000;
+  border-radius:8px;
+}
+
+/* BOTONES */
+.buttons{
+  display:flex;
+  gap:15px;
+  justify-content:center;
+  margin-top:10px;
+}
+
+button{
+  padding:12px 20px;
+  font-size:16px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  color:white;
+}
+
+.btnBlue{ background:#1976d2; }
+.btnGreen{ background:#388e3c; }
+.btnRed{ background:#c62828; }
+
+/* HISTORICO */
+#historial{
+  max-height:150px;
+  overflow-y:auto;
+  background:#212121;
+  color:#00e676;
+  padding:10px;
+  border-radius:8px;
+  font-family:monospace;
+  font-size:13px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>Sistema de Control y Monitoreo</h1>
+  <h2>Automatización e Instrumentación</h2>
+  <h3>Autores: William Pallo – Christopher Nacimba</h3>
+  <h2>SISTEMA DE PREDICCIÓN DE FALLOS INDUSTRIALES</h2>
+</header>
+
+<div class="container">
+
+<!-- ESTADOS -->
+<div class="card status">
+  <div id="motorState" class="indicator motorON">MOTOR: ON</div>
+  <div id="fallaState" class="indicator">FALLA: NONE</div>
+  <div id="lubState" class="indicator lubOFF">LUBRICADOR: OFF</div>
+</div>
+
+<!-- GESTOS -->
+<div class="card gestos">
+
+  <div class="gestoBox">
+    <div class="gestoInfo">
+      <span>GESTO 1</span>
+      Valor: <span id="g1">0.0000</span>
+      MAX: <span id="g1max">0.0000</span>
+    </div>
+    <canvas id="c1" width="320" height="120"></canvas>
+  </div>
+
+  <div class="gestoBox">
+    <div class="gestoInfo">
+      <span>GESTO 2</span>
+      Valor: <span id="g2">0.0000</span>
+      MAX: <span id="g2max">0.0000</span>
+    </div>
+    <canvas id="c2" width="320" height="120"></canvas>
+  </div>
+
+</div>
+
+<!-- BOTONES -->
+<div class="card buttons">
+  <button class="btnGreen" onclick="sendCmd('REARME')">REARME</button>
+  <button class="btnBlue" onclick="sendCmd('LUB_ON')">LUBRICAR</button>
+  <button class="btnRed" onclick="sendCmd('LUB_OFF')">DETENER</button>
+</div>
+
+<!-- HISTORIAL -->
+<div class="card">
+  <h3>Histórico de Fallas</h3>
+  <div id="historial"></div>
+</div>
+
+</div>
+
+<script>
+let device, rxChar, txChar;
+
+let g1buf=[], g2buf=[];
+let maxPoints=120;
+
+let g1max=0, g2max=0;
+
+function draw(buf,v,id,color){
+  const c=document.getElementById(id);
+  const ctx=c.getContext("2d");
+
+  const center=c.height/2;
+  const scale=c.height*0.8;
+
+  buf.push(v);
+  if(buf.length>maxPoints) buf.shift();
+
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.strokeStyle=color;
+  ctx.beginPath();
+
+  buf.forEach((val,i)=>{
+    const x=i*(c.width/maxPoints);
+    const y=center-(val*scale);
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function handleData(txt){
+  const p=Object.fromEntries(txt.split(",").map(e=>e.split(":")));
+
+  const g1=parseFloat(p.g1);
+  const g2=parseFloat(p.g2);
+
+  g1max=Math.max(g1max,g1);
+  g2max=Math.max(g2max,g2);
+
+  document.getElementById("g1").textContent=g1.toFixed(4);
+  document.getElementById("g2").textContent=g2.toFixed(4);
+  document.getElementById("g1max").textContent=g1max.toFixed(4);
+  document.getElementById("g2max").textContent=g2max.toFixed(4);
+
+  draw(g1buf,g1,"c1","#00e5ff");
+  draw(g2buf,g2,"c2","#ffeb3b");
+
+  const motor=document.getElementById("motorState");
+  motor.textContent="MOTOR: "+p.motor;
+  motor.className="indicator "+(p.motor==="ON"?"motorON":"motorOFF");
+
+  document.getElementById("fallaState").textContent="FALLA: "+p.falla;
+
+  if(p.falla!=="NONE"){
+    document.getElementById("historial").innerHTML+=
+      new Date().toLocaleTimeString()+" → "+p.falla+"<br>";
+  }
+}
+
+async function connect(){
+  device=await navigator.bluetooth.requestDevice({
+    filters:[{name:"ESP32_GESTOS"}],
+    optionalServices:["6e400001-b5a3-f393-e0a9-e50e24dcca9e"]
+  });
+
+  const server=await device.gatt.connect();
+  const service=await server.getPrimaryService("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+
+  txChar=await service.getCharacteristic("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
+  rxChar=await service.getCharacteristic("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+
+  await txChar.startNotifications();
+  txChar.addEventListener("characteristicvaluechanged",e=>{
+    handleData(new TextDecoder().decode(e.target.value));
+  });
+}
+
+async function sendCmd(cmd){
+  if(rxChar){
+    await rxChar.writeValue(new TextEncoder().encode(cmd));
+    if(cmd==="LUB_ON") document.getElementById("lubState").className="indicator lubON";
+    if(cmd==="LUB_OFF") document.getElementById("lubState").className="indicator lubOFF";
+  }
+}
+
+connect();
+</script>
+
+</body>
+</html>
